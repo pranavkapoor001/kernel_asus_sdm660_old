@@ -1357,6 +1357,7 @@ exit:
 	do_div(end_time, 1000);
 	dev->last_residency = end_time;
 	update_history(dev, idx);
+
 	local_irq_enable();
 	if (lpm_prediction) {
 		histtimer_cancel();
