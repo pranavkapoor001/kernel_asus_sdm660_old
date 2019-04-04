@@ -4229,10 +4229,6 @@ int smblib_get_prop_slave_current_now(struct smb_charger *chg,
 
 irqreturn_t smblib_handle_debug(int irq, void *data)
 {
-	struct smb_irq_data *irq_data = data;
-	struct smb_charger *chg = irq_data->parent_data;
-
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	return IRQ_HANDLED;
 }
 
@@ -4270,8 +4266,6 @@ irqreturn_t smblib_handle_chg_state_change(int irq, void *data)
 	u8 stat;
 	int rc;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
-
 	rc = smblib_read(chg, BATTERY_CHARGER_STATUS_1_REG, &stat);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't read BATTERY_CHARGER_STATUS_1 rc=%d\n",
@@ -4307,7 +4301,6 @@ irqreturn_t smblib_handle_batt_psy_changed(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	power_supply_changed(chg->batt_psy);
 	return IRQ_HANDLED;
 }
@@ -4317,7 +4310,6 @@ irqreturn_t smblib_handle_usb_psy_changed(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	power_supply_changed(chg->usb_psy);
 	return IRQ_HANDLED;
 }
@@ -4328,7 +4320,6 @@ irqreturn_t smblib_handle_usbin_uv(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 	struct storm_watch *wdata;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	if (!chg->irq_info[SWITCH_POWER_OK_IRQ].irq_data)
 		return IRQ_HANDLED;
 
@@ -5496,8 +5487,6 @@ irqreturn_t smblib_handle_wdog_bark(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 	int rc;
-
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 
 	rc = smblib_write(chg, BARK_BITE_WDOG_PET_REG, BARK_BITE_WDOG_PET_BIT);
 	if (rc < 0)
