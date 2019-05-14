@@ -33,7 +33,7 @@
 	};
 
 	chan@4f {
-		qcom,hw-settle-time = <0xf>;
+		qcom,hw-settle-time = <15>;
 	};
 
 	chan@13 {
