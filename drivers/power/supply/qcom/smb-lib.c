@@ -1358,7 +1358,7 @@ static int smblib_typec_irq_disable_vote_callback(struct votable *votable,
  * VCONN REGULATOR *
  * *****************/
 
-#define MAX_OTG_SS_TRIES 2
+#define MAX_OTG_SS_TRIES 8
 static int _smblib_vconn_regulator_enable(struct regulator_dev *rdev)
 {
 	struct smb_charger *chg = rdev_get_drvdata(rdev);
@@ -1449,7 +1449,7 @@ int smblib_vconn_regulator_is_enabled(struct regulator_dev *rdev)
 /*****************
  * OTG REGULATOR *
  *****************/
-#define MAX_RETRY		15
+#define MAX_RETRY		60
 #define MIN_DELAY_US		2000
 #define MAX_DELAY_US		9000
 static int otg_current[] = {250000, 500000, 1000000, 1500000};
@@ -1466,12 +1466,14 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 						otg_current[i]);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't set otg limit rc=%d\n", rc);
+                        printk("failed to set otg limit");
 			return rc;
 		}
 
 		rc = smblib_write(chg, CMD_OTG_REG, OTG_EN_BIT);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't enable OTG rc=%d\n", rc);
+                        printk("failed to enable otg rc");
 			return rc;
 		}
 
@@ -1491,6 +1493,7 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 				if (rc < 0) {
 					smblib_err(chg, "Couldn't set otg limit rc=%d\n",
 							rc);
+                                        printk("otg current limit failed\n");
 					goto out;
 				}
 				break;
@@ -1511,6 +1514,7 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 			}
 		} else {
 			smblib_dbg(chg, PR_OTG, "OTG enabled\n");
+                        printk("otg enabled");
 			return 0;
 		}
 	}
@@ -1543,11 +1547,13 @@ static int _smblib_vbus_regulator_enable(struct regulator_dev *rdev)
 	}
 
 	smblib_dbg(chg, PR_OTG, "enabling OTG\n");
+        printk("enabling otg"); 
 
 	if (chg->wa_flags & OTG_WA) {
 		rc = smblib_enable_otg_wa(chg);
 		if (rc < 0)
 			smblib_err(chg, "Couldn't enable OTG rc=%d\n", rc);
+                        printk("Couldn't enable OTG rc");
 	} else {
 		rc = smblib_write(chg, CMD_OTG_REG, OTG_EN_BIT);
 		if (rc < 0)
@@ -5698,7 +5704,8 @@ static void smblib_otg_oc_exit(struct smb_charger *chg, bool success)
 		smblib_err(chg, "Couldn't enable VBUS < 1V check rc=%d\n", rc);
 }
 
-#define MAX_OC_FALLING_TRIES 10
+#define MAX_OC_FALLING_TRIES 60 
+//pk
 static void smblib_otg_oc_work(struct work_struct *work)
 {
 	struct smb_charger *chg = container_of(work, struct smb_charger,
@@ -5760,9 +5767,11 @@ static void smblib_otg_oc_work(struct work_struct *work)
 	}
 
 	smblib_dbg(chg, PR_OTG, "OTG OC fell after %dms\n", 2 * i + 1);
+        printk("OTG OC fell after ms");
 	rc = _smblib_vbus_regulator_enable(chg->vbus_vreg->rdev);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't enable VBUS rc=%d\n", rc);
+                printk("couldnt enable vbus rc");
 		goto unlock;
 	}
 
@@ -6162,8 +6171,10 @@ int smblib_init(struct smb_charger *chg)
 			return rc;
 		}
 
-		rc = qcom_step_chg_init(chg->step_chg_enabled,
+		/*rc = qcom_step_chg_init(chg->step_chg_enabled,
 						chg->sw_jeita_enabled);
+                */
+
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't init qcom_step_chg_init rc=%d\n",
 				rc);
