@@ -16,7 +16,6 @@
 #include <linux/io.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
-#include <linux/wakelock.h>
 #include <linux/kthread.h>
 #include <linux/cdev.h>
 #include <linux/fs.h>
@@ -40,6 +39,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/fb.h>
 #include <linux/notifier.h>
+#include <linux/pm_wakeup.h>
 
 typedef struct key_report {
 	int key;
@@ -96,7 +96,7 @@ struct cdfinger_key_map {
 #define DEVICE_NAME "fpsdev0"
 #define INPUT_DEVICE_NAME "cdfinger_input"
 
-#define WAKELOCK_HOLD_TIME 200
+#define WAKELOCK_HOLD_TIME 500
 
 static bool screen_is_on = true;
 static u8 cdfinger_debug = 0x01;
@@ -120,7 +120,7 @@ struct cdfingerfp_data {
 	u32 reset_num;
 	u32 pwr_num;
 	struct fasync_struct *async_queue;
-	struct wake_lock cdfinger_lock;
+	struct wakeup_source cdfinger_lock;
 	struct notifier_block notifier;
 	struct mutex buf_lock;
 	struct input_dev* cdfinger_input;
@@ -297,7 +297,7 @@ static int cdfinger_release(struct inode *inode,struct file *file)
 
 static void cdfinger_wake_lock(struct cdfingerfp_data *pdata)
 {
-	wake_lock_timeout(&pdata->cdfinger_lock, msecs_to_jiffies(WAKELOCK_HOLD_TIME));
+	__pm_wakeup_event(&pdata->cdfinger_lock, msecs_to_jiffies(WAKELOCK_HOLD_TIME));
 }
 
 static void cdfinger_async_report(void)
@@ -311,7 +311,7 @@ static irqreturn_t cdfinger_eint_handler(int irq, void *dev_id)
 	struct cdfingerfp_data *pdata = g_cdfingerfp_data;
 	if (pdata->irq_enabled)
 	{
-		cdfinger_wake_lock(pdata);
+		__pm_wakeup_event(&pdata->cdfinger_lock, WAKELOCK_HOLD_TIME);
 		cdfinger_async_report();
 	}
 	return IRQ_HANDLED;
@@ -526,7 +526,7 @@ static int cdfinger_probe(struct platform_device *pdev)
 	}
 	cdfingerdev->miscdev = &st_cdfinger_dev;
 	mutex_init(&cdfingerdev->buf_lock);
-	wake_lock_init(&cdfingerdev->cdfinger_lock, WAKE_LOCK_SUSPEND, "cdfinger wakelock");
+	wakeup_source_init(&cdfingerdev->cdfinger_lock, "cdfinger wakelock");
 
 	cdfingerdev->cdfinger_input = input_allocate_device();
 	if(!cdfingerdev->cdfinger_input){
