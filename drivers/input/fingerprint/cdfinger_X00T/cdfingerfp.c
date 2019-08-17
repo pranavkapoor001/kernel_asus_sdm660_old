@@ -295,10 +295,6 @@ static int cdfinger_release(struct inode *inode,struct file *file)
 	return 0;
 }
 
-static void cdfinger_wake_lock(struct cdfingerfp_data *pdata)
-{
-	__pm_wakeup_event(&pdata->cdfinger_lock, msecs_to_jiffies(WAKELOCK_HOLD_TIME));
-}
 
 static void cdfinger_async_report(void)
 {
