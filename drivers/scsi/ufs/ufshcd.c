@@ -7987,6 +7987,7 @@ static inline int ufshcd_config_vreg_hpm(struct ufs_hba *hba,
 {
 	if (!vreg)
 		return 0;
+
 	else if (vreg->unused)
 		return 0;
 	else
