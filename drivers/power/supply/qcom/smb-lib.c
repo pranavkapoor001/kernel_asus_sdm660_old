@@ -61,11 +61,6 @@ static struct alarm bat_alarm;
 /* global gpio_control */
 extern struct gpio_control *global_gpio;
 static int ASUS_ADAPTER_ID;
-#define CHG_ALERT_HOT_NTC_VOLTAFE	237229 /* 70 deg C */
-#define CHG_ALERT_WARM_NTC_VOLTAGE	320588 /* 60 deg C */
-#define THM_ALERT_NONE		0 /* temp good */
-#define THM_ALERT_NO_AC		1 /* temp hot with otg */
-#define THM_ALERT_WITH_AC	2 /* temp hot with AC */
 void smblib_asus_monitor_start(struct smb_charger *chg, int time);
 
 bool smartchg_stop_flag;
@@ -77,23 +72,15 @@ int asus_get_prop_batt_volt(struct smb_charger *chg);
 int asus_get_prop_batt_capacity(struct smb_charger *chg);
 int asus_get_prop_batt_health(struct smb_charger *chg);
 int asus_get_prop_usb_present(struct smb_charger *chg);
+int flag_repeat = 0;
 
 enum ADAPTER_ID {
 	NONE = 0,
 	ASUS_750K,
 	ASUS_200K,
 	PB,
-	OTHERS,
+        OTHERS,
 	ADC_NOT_READY,
-};
-
-static char *asus_id[] = {
-	"NONE",
-	"ASUS_750K",
-	"ASUS_200K",
-	"PB",
-	"OTHERS",
-	"ADC_NOT_READY",
 };
 
 char *health_type[] = {
@@ -296,7 +283,7 @@ enum {
 	MAX_TYPES
 };
 
-static const struct apsd_result const smblib_apsd_results[] = {
+static const struct apsd_result smblib_apsd_results[] = {
 	[UNKNOWN] = {
 		.name	= "UNKNOWN",
 		.bit	= 0,
@@ -839,7 +826,6 @@ static void smblib_uusb_removal(struct smb_charger *chg)
 	alarm_cancel(&bat_alarm);
 
 	asus_flow_processing = 0;
-	ASUS_ADAPTER_ID = 0;
 
 	asus_smblib_relax(smbchg_dev);
 #endif /* CONFIG_MACH_ASUS_X00T */
@@ -1372,7 +1358,7 @@ static int smblib_typec_irq_disable_vote_callback(struct votable *votable,
  * VCONN REGULATOR *
  * *****************/
 
-#define MAX_OTG_SS_TRIES 2
+#define MAX_OTG_SS_TRIES 8
 static int _smblib_vconn_regulator_enable(struct regulator_dev *rdev)
 {
 	struct smb_charger *chg = rdev_get_drvdata(rdev);
@@ -1392,9 +1378,10 @@ static int _smblib_vconn_regulator_enable(struct regulator_dev *rdev)
 				 VCONN_EN_VALUE_BIT | val);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't enable vconn setting rc=%d\n", rc);
+                printk("vconn failed\n");
 		return rc;
 	}
-
+        
 	return rc;
 }
 
@@ -1462,13 +1449,14 @@ int smblib_vconn_regulator_is_enabled(struct regulator_dev *rdev)
 /*****************
  * OTG REGULATOR *
  *****************/
-#define MAX_RETRY		15
+#define MAX_RETRY		60
 #define MIN_DELAY_US		2000
 #define MAX_DELAY_US		9000
 static int otg_current[] = {250000, 500000, 1000000, 1500000};
 static int smblib_enable_otg_wa(struct smb_charger *chg)
 {
-	u8 stat;
+
+        u8 stat;
 	int rc, i, retry_count = 0, min_delay = MIN_DELAY_US;
 
 	for (i = 0; i < ARRAY_SIZE(otg_current); i++) {
@@ -1478,12 +1466,14 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 						otg_current[i]);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't set otg limit rc=%d\n", rc);
+                        printk("failed to set otg limit");
 			return rc;
 		}
 
 		rc = smblib_write(chg, CMD_OTG_REG, OTG_EN_BIT);
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't enable OTG rc=%d\n", rc);
+                        printk("failed to enable otg rc");
 			return rc;
 		}
 
@@ -1493,8 +1483,7 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 			usleep_range(min_delay, min_delay + 100);
 			rc = smblib_read(chg, OTG_STATUS_REG, &stat);
 			if (rc < 0) {
-				smblib_err(chg, "Couldn't read OTG status rc=%d\n",
-							rc);
+				smblib_err(chg, "Couldn't read OTG status rc=%d\n",rc);
 				goto out;
 			}
 
@@ -1504,6 +1493,7 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 				if (rc < 0) {
 					smblib_err(chg, "Couldn't set otg limit rc=%d\n",
 							rc);
+                                        printk("otg current limit failed\n");
 					goto out;
 				}
 				break;
@@ -1515,8 +1505,8 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 		} while (retry_count++ < MAX_RETRY);
 
 		if (retry_count >= MAX_RETRY) {
-			smblib_dbg(chg, PR_OTG, "OTG enable failed with %duA\n",
-								otg_current[i]);
+			smblib_dbg(chg, PR_OTG, "OTG enable failed with %duA\n",otg_current[i]);
+                        printk("Otg Failed\n"); 
 			rc = smblib_write(chg, CMD_OTG_REG, 0);
 			if (rc < 0) {
 				smblib_err(chg, "disable OTG rc=%d\n", rc);
@@ -1524,6 +1514,7 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 			}
 		} else {
 			smblib_dbg(chg, PR_OTG, "OTG enabled\n");
+                        printk("otg enabled");
 			return 0;
 		}
 	}
@@ -1531,12 +1522,13 @@ static int smblib_enable_otg_wa(struct smb_charger *chg)
 	if (i == ARRAY_SIZE(otg_current)) {
 		rc = -EINVAL;
 		goto out;
-	}
+	}  
 
 	return 0;
 out:
 	smblib_write(chg, CMD_OTG_REG, 0);
 	return rc;
+
 }
 
 static int _smblib_vbus_regulator_enable(struct regulator_dev *rdev)
@@ -1555,11 +1547,13 @@ static int _smblib_vbus_regulator_enable(struct regulator_dev *rdev)
 	}
 
 	smblib_dbg(chg, PR_OTG, "enabling OTG\n");
+        printk("enabling otg"); 
 
 	if (chg->wa_flags & OTG_WA) {
 		rc = smblib_enable_otg_wa(chg);
 		if (rc < 0)
 			smblib_err(chg, "Couldn't enable OTG rc=%d\n", rc);
+                        printk("Couldn't enable OTG rc");
 	} else {
 		rc = smblib_write(chg, CMD_OTG_REG, OTG_EN_BIT);
 		if (rc < 0)
@@ -1586,8 +1580,10 @@ int smblib_vbus_regulator_enable(struct regulator_dev *rdev)
 	if (!chg->usb_icl_votable) {
 		chg->usb_icl_votable = find_votable("USB_ICL");
 
-		if (!chg->usb_icl_votable)
-			return -EINVAL;
+		if (!chg->usb_icl_votable) {
+			rc = -EINVAL;
+			goto unlock;
+		}
 	}
 	vote(chg->usb_icl_votable, USBIN_USBIN_BOOST_VOTER, true, 0);
 
@@ -2066,17 +2062,14 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		return -EINVAL;
 
 	chg->system_temp_level = val->intval;
-	/* disable parallel charge in case of system temp level */
-	vote(chg->pl_disable_votable, THERMAL_DAEMON_VOTER,
-			chg->system_temp_level ? true : false, 0);
 
 	if (chg->system_temp_level == chg->thermal_levels)
 		return vote(chg->chg_disable_votable,
 			THERMAL_DAEMON_VOTER, true, 0);
 
 	vote(chg->chg_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
-	if (chg->system_temp_level == 0)
-		return vote(chg->fcc_votable, THERMAL_DAEMON_VOTER, false, 0);
+//	if (chg->system_temp_level == 0)
+		return vote(chg->usb_icl_votable, THERMAL_DAEMON_VOTER, false, 0);
 
 	vote(chg->fcc_votable, THERMAL_DAEMON_VOTER, true,
 			chg->thermal_mitigation[chg->system_temp_level]);
@@ -2652,23 +2645,16 @@ int smblib_get_prop_die_health(struct smb_charger *chg,
 		return rc;
 	}
 
-	/* TEMP_RANGE bits are mutually exclusive */
-	switch (stat & TEMP_RANGE_MASK) {
-	case TEMP_BELOW_RANGE_BIT:
-		val->intval = POWER_SUPPLY_HEALTH_COOL;
-		break;
-	case TEMP_WITHIN_RANGE_BIT:
-		val->intval = POWER_SUPPLY_HEALTH_WARM;
-		break;
-	case TEMP_ABOVE_RANGE_BIT:
-		val->intval = POWER_SUPPLY_HEALTH_HOT;
-		break;
-	case ALERT_LEVEL_BIT:
+	if (stat & ALERT_LEVEL_BIT)
 		val->intval = POWER_SUPPLY_HEALTH_OVERHEAT;
-		break;
-	default:
+	else if (stat & TEMP_ABOVE_RANGE_BIT)
+		val->intval = POWER_SUPPLY_HEALTH_HOT;
+	else if (stat & TEMP_WITHIN_RANGE_BIT)
+		val->intval = POWER_SUPPLY_HEALTH_WARM;
+	else if (stat & TEMP_BELOW_RANGE_BIT)
+		val->intval = POWER_SUPPLY_HEALTH_COOL;
+	else
 		val->intval = POWER_SUPPLY_HEALTH_UNKNOWN;
-	}
 
 	return 0;
 }
@@ -3328,7 +3314,7 @@ int asus_get_prop_batt_volt(struct smb_charger *chg)
 	union power_supply_propval volt_val = {0, };
 	int rc;
 
-	rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_CURRENT_NOW,
+	rc = smblib_get_prop_from_bms(chg, POWER_SUPPLY_PROP_VOLTAGE_NOW,
 					&volt_val);
 
 	return volt_val.intval;
@@ -3409,7 +3395,7 @@ void asus_batt_RTC_work(struct work_struct *dat)
 	new_batAlarm_time.tv_sec = 0;
 	new_batAlarm_time.tv_nsec = 0;
 
-	RTCSetInterval = 60;
+	RTCSetInterval = 10800;
 
 	new_batAlarm_time.tv_sec = mtNow.tv_sec + RTCSetInterval;
 	pr_debug("%s: alarm start after %ds\n", __func__, RTCSetInterval);
@@ -3427,6 +3413,7 @@ void asus_batt_RTC_work(struct work_struct *dat)
 #define ICL_1500mA	0x3C
 #define ICL_1900mA	0x4C
 #define ICL_2000mA	0x50
+#define ICL_2500mA	0x64
 #define ICL_2850mA	0x72
 #define ICL_3000mA	0x78
 #define ASUS_MONITOR_CYCLE	60000
@@ -3458,6 +3445,8 @@ void smblib_asus_monitor_start(struct smb_charger *chg, int time)
 #define SMBCHG_FAST_CHG_CURRENT_VALUE_1500MA	0x3C
 #define SMBCHG_FAST_CHG_CURRENT_VALUE_2000MA	0x50
 #define SMBCHG_FAST_CHG_CURRENT_VALUE_2050MA	0x52
+#define SMBCHG_FAST_CHG_CURRENT_VALUE_2500MA	0x64
+#define SMBCHG_FAST_CHG_CURRENT_VALUE_2850MA	0x72
 #define SMBCHG_FAST_CHG_CURRENT_VALUE_3000MA	0x78
 
 enum JEITA_state {
@@ -3538,7 +3527,7 @@ int smbchg_jeita_judge_state(int old_State, int batt_tempr)
 		result_State = JEITA_STATE_RANGE_100_to_500;
 	/* 50 <= batt_tempr < 60 */
 	} else if (batt_tempr < 600) {
-		result_State = JEITA_STATE_RANGE_500_to_600;
+		result_State = JEITA_STATE_RANGE_100_to_500;
 	/* 60 <= batt_tempr */
 	} else
 		result_State = JEITA_STATE_LARGER_THAN_600;
@@ -3707,7 +3696,7 @@ void jeita_rule(void)
 	bat_volt = asus_get_prop_batt_volt(smbchg_dev);
 	bat_capacity = asus_get_prop_batt_capacity(smbchg_dev);
 	state = smbchg_jeita_judge_state(state, bat_temp);
-	pr_debug("%s: state=%d, batt_health = %s, bat_temp = %d, bat_volt = %d, bat_capacity=%d, ICL = 0x%x, FV_reg=0x%x\n",
+	printk("%s: state=%d, batt_health = %s, bat_temp = %d, bat_volt = %d, bat_capacity=%d, ICL = 0x%x, FV_reg=0x%x\n",
 			__func__, state, health_type[bat_health], bat_temp,
 			bat_volt, bat_capacity, ICL_reg, FV_reg);
 
@@ -3715,7 +3704,7 @@ void jeita_rule(void)
 	case JEITA_STATE_LESS_THAN_0:
 		charging_enable = EN_BAT_CHG_EN_COMMAND_FALSE;
 		FV_CFG_reg_value = SMBCHG_FLOAT_VOLTAGE_VALUE_4P357;
-		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_850MA;
+		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_1400MA;
 		break;
 	case JEITA_STATE_RANGE_0_to_100:
 		charging_enable = EN_BAT_CHG_EN_COMMAND_TRUE;
@@ -3724,7 +3713,7 @@ void jeita_rule(void)
 		FV_CFG_reg_value = SMBCHG_FLOAT_VOLTAGE_VALUE_4P350;
 
 		/* reg=1061 */
-		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_1400MA;
+		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_2000MA;
 
 		rc = SW_recharge(smbchg_dev);
 		if (rc < 0)
@@ -3739,7 +3728,11 @@ void jeita_rule(void)
 		FV_CFG_reg_value = SMBCHG_FLOAT_VOLTAGE_VALUE_4P350;
 
 		/* reg=1061 */
-		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_2000MA;
+       		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_3000MA;
+					
+			
+		printk("%s: FCC_reg_value = 0x%x",
+			__func__,FCC_reg_value);
 
 		rc = SW_recharge(smbchg_dev);
 		if (rc < 0)
@@ -3750,12 +3743,12 @@ void jeita_rule(void)
 	case JEITA_STATE_RANGE_500_to_600:
 		charging_enable = EN_BAT_CHG_EN_COMMAND_TRUE;
 		FV_CFG_reg_value = SMBCHG_FLOAT_VOLTAGE_VALUE_4P004;
-		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_2000MA;
+		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_2500MA;
 		break;
 	case JEITA_STATE_LARGER_THAN_600:
 		charging_enable = EN_BAT_CHG_EN_COMMAND_FALSE;
 		FV_CFG_reg_value = SMBCHG_FLOAT_VOLTAGE_VALUE_4P004;
-		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_1475MA;
+		FCC_reg_value = SMBCHG_FAST_CHG_CURRENT_VALUE_1500MA;
 		break;
 	}
 
@@ -3898,7 +3891,7 @@ void asus_chg_flow_work(struct work_struct *work)
 
 	case OCP_CHARGER_BIT:
 		/* reg=1370 bit7-bit0 */
-		set_icl = ICL_1000mA;
+		set_icl = ICL_1500mA;
 
 		rc = smblib_masked_write(smbchg_dev,
 						USBIN_CURRENT_LIMIT_CFG_REG,
@@ -3925,7 +3918,7 @@ void asus_chg_flow_work(struct work_struct *work)
 				__func__);
 
 		/* reg=1370 bit7-bit0 */
-		set_icl = ICL_1000mA;
+		set_icl = ICL_1500mA;
 
 		rc = smblib_masked_write(smbchg_dev,
 						USBIN_CURRENT_LIMIT_CFG_REG,
@@ -3962,6 +3955,8 @@ void asus_chg_flow_work(struct work_struct *work)
 	}
 }
 
+
+// Getting charger ID Here
 extern int32_t get_ID_vadc_voltage(void);
 static void CHG_TYPE_judge(struct smb_charger *chg)
 {
@@ -3977,6 +3972,8 @@ static void CHG_TYPE_judge(struct smb_charger *chg)
 	/* read charger ID via pm660 gpio3 */
 	adc_result = get_ID_vadc_voltage();
 
+        if(flag_repeat == 0)
+   {
 	/* vdm1 < 0.3v */
 	if (adc_result <= VADC_THD_300MV) {
 		ret = gpio_direction_output(global_gpio->ADCPWREN_PMI_GP1, 1);
@@ -3987,31 +3984,46 @@ static void CHG_TYPE_judge(struct smb_charger *chg)
 			pr_debug("%s: Pull high ADC_VH_EN\n", __func__);
 
 		msleep(500);
-
+                
+        if(flag_repeat == 0)
 		/* vdm2 > 1v */
 		adc_result = get_ID_vadc_voltage();
-		if (adc_result >= VADC_THD_1000MV) {
-			ASUS_ADAPTER_ID = OTHERS;
+		if (adc_result >= VADC_THD_1000MV) { //For Others only
+		   { 	ASUS_ADAPTER_ID = OTHERS;
+                        flag_repeat = 1;
+                   }
 		} else {
-			/* 0.675 < adc_result < 0.851 */
+			/* 0.675 < adc_result < 0.851 */         //For asus only             
 			if (adc_result >= MIN_750K && adc_result <= MAX_750K) {
 				ASUS_ADAPTER_ID = ASUS_750K;
+                                flag_repeat = 1;
 			/* 0.306 < adc_result <  0.406 */
 			} else if (adc_result >= MIN_200K &&
-					adc_result <= MAX_200K)
+					adc_result <= MAX_200K){
 				ASUS_ADAPTER_ID = ASUS_200K;
-			else
-				ASUS_ADAPTER_ID = OTHERS;
-		}
+                                flag_repeat = 1;
+			} 
+                                
+                }
 	/* vdm1 */
 	} else {
 		if (adc_result >= VADC_THD_900MV)
-			ASUS_ADAPTER_ID = PB;
-		else
+		    ASUS_ADAPTER_ID = PB;
+                   else
 			ASUS_ADAPTER_ID = OTHERS;
-	}
+                } 
 
-	pr_debug("CHG_TYPE_judge ASUS_ADAPTER_ID=%d\n", ASUS_ADAPTER_ID);
+    }
+
+    if(ASUS_ADAPTER_ID == 4||ASUS_ADAPTER_ID == 3) //Non-Asus-Charger
+        printk("OTHER_CHARGER\n");
+   
+       else if(ASUS_ADAPTER_ID == 1||ASUS_ADAPTER_ID == 2)//Asus-Charger
+                printk("ASUS_CHARGER\n");
+    
+               else if(ASUS_ADAPTER_ID == 3)
+                        printk("POWER_BANK");
+        
 }
 
 void asus_adapter_adc_work(struct work_struct *work)
@@ -4034,22 +4046,11 @@ void asus_adapter_adc_work(struct work_struct *work)
 		pr_err("%s: Failed to set USBIN_OPTIONS_1_CFG_REG\n",
 			__func__);
 
+
 	msleep(5);
-	CHG_TYPE_judge(smbchg_dev);
+       	CHG_TYPE_judge(smbchg_dev);
 
-	/* determine current-setting value for DCP type AC: */
-	switch (ASUS_ADAPTER_ID) {
-	case ASUS_750K:
-	case ASUS_200K:
-	case PB:
-	case OTHERS:
-		usb_max_current = ICL_2000mA;
-		break;
-
-	case ADC_NOT_READY:
-		usb_max_current = ICL_1000mA;
-		break;
-	}
+    	usb_max_current = ICL_3000mA;
 
 	rc = smblib_set_usb_suspend(smbchg_dev, 0);
 	if (rc < 0)
@@ -4070,8 +4071,8 @@ void asus_adapter_adc_work(struct work_struct *work)
 	else
 		pr_debug("%s: Pull low USBSW_S\n", __func__);
 
-	pr_debug("%s: ASUS_ADAPTER_ID = %s, setting mA = 0x%x\n", __func__,
-			asus_id[ASUS_ADAPTER_ID], usb_max_current);
+	printk("%s:setting mA = 0x%x\n", __func__,
+			usb_max_current);
 
 	/* Set current:
 	 * reg=1370, bit7-bit0=
@@ -4092,6 +4093,7 @@ void asus_insertion_initial_settings(struct smb_charger *chg)
 {
 	int rc;
 	u8 USBIN_cc;
+        flag_repeat = 0;
 
 	/* reg=1060, 0x03, 75mA, gaiwei, 0x06, 150mA */
 	rc = smblib_write(chg, PRE_CHARGE_CURRENT_CFG_REG, 0x06);
@@ -4233,10 +4235,6 @@ int smblib_get_prop_slave_current_now(struct smb_charger *chg,
 
 irqreturn_t smblib_handle_debug(int irq, void *data)
 {
-	struct smb_irq_data *irq_data = data;
-	struct smb_charger *chg = irq_data->parent_data;
-
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	return IRQ_HANDLED;
 }
 
@@ -4274,8 +4272,6 @@ irqreturn_t smblib_handle_chg_state_change(int irq, void *data)
 	u8 stat;
 	int rc;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
-
 	rc = smblib_read(chg, BATTERY_CHARGER_STATUS_1_REG, &stat);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't read BATTERY_CHARGER_STATUS_1 rc=%d\n",
@@ -4311,7 +4307,6 @@ irqreturn_t smblib_handle_batt_psy_changed(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	power_supply_changed(chg->batt_psy);
 	return IRQ_HANDLED;
 }
@@ -4321,7 +4316,6 @@ irqreturn_t smblib_handle_usb_psy_changed(int irq, void *data)
 	struct smb_irq_data *irq_data = data;
 	struct smb_charger *chg = irq_data->parent_data;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	power_supply_changed(chg->usb_psy);
 	return IRQ_HANDLED;
 }
@@ -4332,7 +4326,6 @@ irqreturn_t smblib_handle_usbin_uv(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 	struct storm_watch *wdata;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
 	if (!chg->irq_info[SWITCH_POWER_OK_IRQ].irq_data)
 		return IRQ_HANDLED;
 
@@ -5501,8 +5494,6 @@ irqreturn_t smblib_handle_wdog_bark(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 	int rc;
 
-	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
-
 	rc = smblib_write(chg, BARK_BITE_WDOG_PET_REG, BARK_BITE_WDOG_PET_BIT);
 	if (rc < 0)
 		smblib_err(chg, "Couldn't pet the dog rc=%d\n", rc);
@@ -5694,7 +5685,8 @@ static void smblib_otg_oc_exit(struct smb_charger *chg, bool success)
 		smblib_err(chg, "Couldn't enable VBUS < 1V check rc=%d\n", rc);
 }
 
-#define MAX_OC_FALLING_TRIES 10
+#define MAX_OC_FALLING_TRIES 60 
+//pk
 static void smblib_otg_oc_work(struct work_struct *work)
 {
 	struct smb_charger *chg = container_of(work, struct smb_charger,
@@ -5756,9 +5748,11 @@ static void smblib_otg_oc_work(struct work_struct *work)
 	}
 
 	smblib_dbg(chg, PR_OTG, "OTG OC fell after %dms\n", 2 * i + 1);
+        printk("OTG OC fell after ms");
 	rc = _smblib_vbus_regulator_enable(chg->vbus_vreg->rdev);
 	if (rc < 0) {
 		smblib_err(chg, "Couldn't enable VBUS rc=%d\n", rc);
+                printk("couldnt enable vbus rc");
 		goto unlock;
 	}
 
@@ -6158,8 +6152,10 @@ int smblib_init(struct smb_charger *chg)
 			return rc;
 		}
 
-		rc = qcom_step_chg_init(chg->step_chg_enabled,
+		/*rc = qcom_step_chg_init(chg->step_chg_enabled,
 						chg->sw_jeita_enabled);
+                */
+
 		if (rc < 0) {
 			smblib_err(chg, "Couldn't init qcom_step_chg_init rc=%d\n",
 				rc);

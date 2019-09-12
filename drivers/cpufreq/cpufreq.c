@@ -30,6 +30,7 @@
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
 #include <linux/tick.h>
+#include <linux/binfmts.h>
 #ifdef CONFIG_SMP
 #include <linux/sched.h>
 #endif
@@ -651,6 +652,11 @@ static int cpufreq_parse_governor(char *str_governor, unsigned int *policy,
 
 			if (ret == 0)
 				t = find_governor(str_governor);
+
+#ifdef CONFIG_CPU_FREQ_GOV_SCHEDUTIL
+			else
+				t = find_governor("schedutil");
+#endif
 		}
 
 		if (t != NULL) {
@@ -708,6 +714,9 @@ static ssize_t store_##file_name					\
 	int ret, temp;							\
 	struct cpufreq_policy new_policy;				\
 									\
+	if (&policy->object == &policy->min)				\
+		return count;						\
+									\
 	memcpy(&new_policy, policy, sizeof(*policy));			\
 	new_policy.min = policy->user_policy.min;			\
 	new_policy.max = policy->user_policy.max;			\
@@ -746,7 +755,9 @@ static ssize_t show_cpuinfo_cur_freq(struct cpufreq_policy *policy,
  */
 static ssize_t show_scaling_governor(struct cpufreq_policy *policy, char *buf)
 {
-	if (policy->policy == CPUFREQ_POLICY_POWERSAVE)
+	if (task_is_booster(current))
+		return sprintf(buf, "schedutil\n");
+	else if (policy->policy == CPUFREQ_POLICY_POWERSAVE)
 		return sprintf(buf, "powersave\n");
 	else if (policy->policy == CPUFREQ_POLICY_PERFORMANCE)
 		return sprintf(buf, "performance\n");
