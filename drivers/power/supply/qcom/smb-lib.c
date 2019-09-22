@@ -3593,7 +3593,7 @@ static int jeita_status_regs_write(u8 chg_en, u8 FV_CFG, u8 FCC)
 			__func__);
 
 	pr_debug("jeita_status_regs_write  ICL = 0x%x\n", ICL_reg);
-	asus_smblib_rerun_aicl(smbchg_dev);
+	//asus_smblib_rerun_aicl(smbchg_dev); // PK Disable aicl rerun from jeita
 
 	/* reg1370, usbin_limit */
 	rc = smblib_read(smbchg_dev, USBIN_CURRENT_LIMIT_CFG_REG, &ICL_reg);
@@ -3858,7 +3858,7 @@ void asus_chg_flow_work(struct work_struct *work)
 			pr_err("%s: Failed to set USBIN_CURRENT_LIMIT\n",
 				__func__);
 
-		asus_smblib_rerun_aicl(smbchg_dev);
+		//asus_smblib_rerun_aicl(smbchg_dev); // PK  
 
 		/* ASUS BSP Austin_T: Jeita start */
 		smblib_asus_monitor_start(smbchg_dev, 0);
@@ -3883,7 +3883,7 @@ void asus_chg_flow_work(struct work_struct *work)
 			pr_err("%s: Couldn't read fast_CURRENT_LIMIT_CFG_REG\n",
 				__func__);
 
-		asus_smblib_rerun_aicl(smbchg_dev);
+		//asus_smblib_rerun_aicl(smbchg_dev); // PK
 
 		/* ASUS BSP Austin_T: Jeita start */
 		smblib_asus_monitor_start(smbchg_dev, 0);
@@ -3901,7 +3901,7 @@ void asus_chg_flow_work(struct work_struct *work)
 			pr_err("%s: Failed to set USBIN_CURRENT_LIMIT\n",
 				__func__);
 
-		asus_smblib_rerun_aicl(smbchg_dev);
+		// asus_smblib_rerun_aicl(smbchg_dev); // PK
 
 		/* ASUS BSP Austin_T: Jeita start */
 		smblib_asus_monitor_start(smbchg_dev, 0);
@@ -4082,7 +4082,7 @@ void asus_adapter_adc_work(struct work_struct *work)
 	if (rc < 0)
 		pr_err("%s: Failed to set USBIN_CURRENT_LIMIT\n", __func__);
 
-	asus_smblib_rerun_aicl(smbchg_dev);
+	asus_smblib_rerun_aicl(smbchg_dev); // PK Rerun with 3A ICL
 
 	/* ASUS BSP Austin_T: Jeita start */
 	smblib_asus_monitor_start(smbchg_dev, 0);
