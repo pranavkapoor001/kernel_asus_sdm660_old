@@ -3839,7 +3839,7 @@ void asus_chg_flow_work(struct work_struct *work)
 			pr_err("%s: Couldn't read fast_CURRENT_LIMIT_CFG_REG\n",
 				__func__);
 
-		set_icl = ICL_500mA;
+		set_icl = ICL_1500mA;
 
 		rc = smblib_masked_write(smbchg_dev,
 						USBIN_CURRENT_LIMIT_CFG_REG,
@@ -3976,14 +3976,13 @@ static void CHG_TYPE_judge(struct smb_charger *chg)
 
 		msleep(500);
                 
-        if(flag_repeat == 0)
 		/* vdm2 > 1v */
 		adc_result = get_ID_vadc_voltage();
-		if (adc_result >= VADC_THD_1000MV) { //For Others only
-		   { 	ASUS_ADAPTER_ID = OTHERS;
+		if (adc_result >= VADC_THD_1000MV){  //For Others only
+		    	ASUS_ADAPTER_ID = OTHERS;
                         flag_repeat = 1;
-                   }
-		} else {
+                }
+		 else {
 			/* 0.675 < adc_result < 0.851 */         //For asus only             
 			if (adc_result >= MIN_750K && adc_result <= MAX_750K) {
 				ASUS_ADAPTER_ID = ASUS_750K;
