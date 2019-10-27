@@ -136,7 +136,7 @@ struct cdfingerfp_data {
 	struct fasync_struct *async_queue;
 	struct wakeup_source cdfinger_lock;
 	struct notifier_block notifier;
-	struct mutex buf_lock;
+	struct rt_mutex buf_lock;
 	struct input_dev* cdfinger_input;
 	bool irq_enabled;
 }*g_cdfingerfp_data;
@@ -465,7 +465,7 @@ static long cdfinger_ioctl(struct file* filp, unsigned int cmd, unsigned long ar
 	struct cdfingerfp_data *cdfinger = filp->private_data;
 	struct cdfingerfp_data *pdata = g_cdfingerfp_data;
 
-	mutex_lock(&cdfinger->buf_lock);
+	rt_mutex_lock(&cdfinger->buf_lock);
 	switch (cmd) {
 		case CDFINGER_INIT_GPIO:
 			err = cdfinger_init_gpio(cdfinger);
@@ -511,7 +511,7 @@ static long cdfinger_ioctl(struct file* filp, unsigned int cmd, unsigned long ar
 		default:
 			break;
 	}
-	mutex_unlock(&cdfinger->buf_lock);
+	rt_mutex_unlock(&cdfinger->buf_lock);
 
 	return err;
 }
@@ -548,15 +548,15 @@ static int cdfinger_fb_notifier_callback(struct notifier_block* self,
 
 	switch (blank) {
 		case FB_BLANK_UNBLANK:
-			mutex_lock(&g_cdfingerfp_data->buf_lock);
+			rt_mutex_lock(&g_cdfingerfp_data->buf_lock);
 			screen_is_on = true;
-			mutex_unlock(&g_cdfingerfp_data->buf_lock);
+			rt_mutex_unlock(&g_cdfingerfp_data->buf_lock);
 			break;
 
 		case FB_BLANK_POWERDOWN:
-			mutex_lock(&g_cdfingerfp_data->buf_lock);
+			rt_mutex_lock(&g_cdfingerfp_data->buf_lock);
 			screen_is_on = false;
-			mutex_unlock(&g_cdfingerfp_data->buf_lock);
+			rt_mutex_unlock(&g_cdfingerfp_data->buf_lock);
 			break;
 
 		default:
@@ -587,7 +587,7 @@ static int cdfinger_probe(struct platform_device *pdev)
 		return -1;
 	}
 	cdfingerdev->miscdev = &st_cdfinger_dev;
-	mutex_init(&cdfingerdev->buf_lock);
+	rt_mutex_init(&cdfingerdev->buf_lock);
 	wakeup_source_init(&cdfingerdev->cdfinger_lock, "cdfinger wakelock");
 
 	cdfingerdev->cdfinger_input = input_allocate_device();
