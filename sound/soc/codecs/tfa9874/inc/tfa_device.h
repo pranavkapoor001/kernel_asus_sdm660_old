@@ -177,9 +177,9 @@ int tfa_dev_probe(int slave, struct tfa_device *tfa);
  *  @param tfa struct = pointer to context of this device instance
  *  @param profile the selected profile to run
  *  @param vstep the selected vstep to use
- *  @return tfa_error enum
+ *  @return Tfa98xx_Error enum
  */
-enum tfa_error tfa_dev_start(struct tfa_device *tfa, int profile, int vstep);
+enum Tfa98xx_Error tfa_dev_start(struct tfa_device *tfa, int profile, int vstep);
 
 
 /**
@@ -191,9 +191,9 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa, int profile, int vstep);
  * Note that this call will change state of the tfa to mute and powered down.
  *
  *  @param tfa struct = pointer to context of this device instance
- *  @return tfa_error enum
+ *  @return Tfa98xx_Error enum
  */
-enum tfa_error tfa_dev_stop(struct tfa_device *tfa);
+enum Tfa98xx_Error tfa_dev_stop(struct tfa_device *tfa);
 
 /**
  * This interface allows a device/type independent fine grained control of the
@@ -212,9 +212,9 @@ enum tfa_error tfa_dev_stop(struct tfa_device *tfa);
  *
  *  @param tfa struct = pointer to context of this device instance
  *  @param state struct = desired device state after function return
- *  @return tfa_error enum
+ *  @return Tfa98xx_Error enum
  */
-enum tfa_error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state,int is_calibration);
+enum Tfa98xx_Error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state,int is_calibration);
 
 /**
  * Retrieve the current state of this instance in an active way.
@@ -224,7 +224,7 @@ enum tfa_error tfa_dev_set_state(struct tfa_device *tfa, enum tfa_state state,in
  * field should be treated as volatile.
  *
  *  @param tfa struct = pointer to context of this device instance
- *  @return tfa_error enum
+ *  @return Tfa98xx_Error enum
  *
  */
 enum tfa_state tfa_dev_get_state(struct tfa_device *tfa);
@@ -252,7 +252,7 @@ int tfa_dev_mtp_get(struct tfa_device *tfa, enum tfa_mtp item);
 /**
  *
  */
-enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int value);
+enum Tfa98xx_Error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int value);
 
 
 //irq
