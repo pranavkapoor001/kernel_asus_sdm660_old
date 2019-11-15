@@ -2032,7 +2032,7 @@ static void tfa98xx_container_loaded(const struct firmware *cont, void *context)
 		pr_debug("%d nprof\n", container->nprof);
 
 		tfa_err = tfa_load_cnt(container, container_size);
-		if (tfa_err != Tfa98xx_Error_Ok) {
+		if (tfa_err != tfa_error_ok) {
 			mutex_unlock(&tfa98xx_mutex);
 			kfree(container);
 			dev_err(tfa98xx->dev, "Cannot load container file, aborting\n");
