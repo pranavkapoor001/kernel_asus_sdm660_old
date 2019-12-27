@@ -43,7 +43,7 @@
 #define SX9310_VIO_MAX_UV       1800000
 
 /* Huaqin add sar switcher by chenyijun5 at 2018/03/20 start*/
-bool sar_switcher = 0;//Indonesia set sar_switcher to 1
+bool sar_switcher = 1;//Enable For Everyone
 module_param(sar_switcher, bool, 0644);
 MODULE_PARM_DESC(sar_switcher, "Control sarsensor open or close.");
 /* Huaqin add sar switcher by chenyijun5 at 2018/03/20 end*/
