@@ -433,6 +433,7 @@ static uint8_t bTouchIsAwake = 0;
 #if WAKEUP_GESTURE
 long gesture_mode = 0;
 static int allow_gesture = 1;
+static int screen_gesture = 1;
 static struct kobject *gesture_kobject;
 
 static ssize_t gesture_show(struct kobject *kobj, struct kobj_attribute *attr,
@@ -451,16 +452,38 @@ static ssize_t gesture_store(struct kobject *kobj, struct kobj_attribute *attr,
 static struct kobj_attribute gesture_attribute = __ATTR(dclicknode, 0664, gesture_show,
                                                    gesture_store);
 
+static ssize_t screengesture_show(struct kobject *kobj, struct kobj_attribute *attr,
+                      char *buf)
+{
+        return sprintf(buf, "%d\n", screen_gesture);
+}
+
+static ssize_t screengesture_store(struct kobject *kobj, struct kobj_attribute *attr,
+                      const char *buf, size_t count)
+{
+        sscanf(buf, "%du", &screen_gesture);
+        return count;
+}
+
+static struct kobj_attribute screengesture_attribute = __ATTR(gesture_node, 0664, screengesture_show,
+                                                   screengesture_store);
+
 int create_gesture_node(void) {
-	int error = 0;
-        NVT_LOG("[Nvt-ts] : Gesture Node initialized successfully \n");
+	int error = 0, error2 = 0;
 
         gesture_kobject = kobject_create_and_add("touchpanel",
                                                  kernel_kobj);
         if(!gesture_kobject)
                 return -ENOMEM;
 
+        NVT_LOG("[Nvt-ts] : Gesture Node initialized successfully \n");
+
         error = sysfs_create_file(gesture_kobject, &gesture_attribute.attr);
+        if (error) {
+                NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
+        }
+
+        error2 = sysfs_create_file(gesture_kobject, &screengesture_attribute.attr);
         if (error) {
                 NVT_LOG("[Nvt-ts] : failed to create the gesture_node file in /sys/kernel/touchpanel \n");
         }
@@ -1086,7 +1109,7 @@ void nvt_ts_wakeup_gesture_report(uint8_t gesture_id)
 			}
 			break;
 		case ID_GESTURE_DOUBLE_CLICK:
-			if (allow_gesture) {
+			if (allow_gesture || screen_gesture) {
 				is_double_tap = 1;
 				NVT_LOG("Gesture : Double Click.\n");
 				keycode = gesture_key_array[3];
@@ -1923,7 +1946,7 @@ static int32_t nvt_ts_suspend(struct device *dev)
 // Huaqin add for esd check function. by zhengwu.lu. at 2018/2/28  end
 
 #if WAKEUP_GESTURE
-	if (!allow_gesture) {
+	if (!allow_gesture && !screen_gesture) {
 // Huaqin add for ctp lose efficacy by zhengwu.lu. at 2018/04/18 For Platform start
 		//disable_irq(ts->client->irq);
 		nvt_irq_disable();
