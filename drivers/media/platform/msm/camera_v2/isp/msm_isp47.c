@@ -25,7 +25,6 @@
 #include "cam_soc_api.h"
 #include "msm_isp48.h"
 #include "linux/iopoll.h"
-#include "msm_cam_cx_ipeak.h"
 
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -1172,6 +1171,7 @@ int msm_vfe47_start_fetch_engine_multi_pass(struct vfe_device *vfe_dev,
 		mutex_lock(&vfe_dev->buf_mgr->lock);
 		rc = vfe_dev->buf_mgr->ops->get_buf_by_index(
 			vfe_dev->buf_mgr, bufq_handle, fe_cfg->buf_idx, &buf);
+		mutex_unlock(&vfe_dev->buf_mgr->lock);
 		if (rc < 0 || !buf) {
 			pr_err("%s: No fetch buffer rc= %d buf= %pK\n",
 				__func__, rc, buf);
@@ -2681,9 +2681,7 @@ int msm_vfe47_set_clk_rate(struct vfe_device *vfe_dev, long *rate)
 		prev_clk_rate <
 		vfe_dev->vfe_clk_rates[MSM_VFE_CLK_RATE_NOMINAL]
 		[vfe_dev->hw_info->vfe_clk_idx]) {
-		pr_debug("%s: clk is more than Nominal vfe %d, ipeak bit %d\n",
-			__func__, vfe_dev->pdev->id, vfe_dev->cx_ipeak_bit);
-		ret = cam_cx_ipeak_update_vote_cx_ipeak(vfe_dev->cx_ipeak_bit);
+		ret = cx_ipeak_update(vfe_dev->vfe_cx_ipeak, true);
 		if (ret) {
 			pr_err("%s: cx_ipeak_update failed %d\n",
 				__func__, ret);
@@ -2706,9 +2704,7 @@ int msm_vfe47_set_clk_rate(struct vfe_device *vfe_dev, long *rate)
 		prev_clk_rate >=
 		vfe_dev->vfe_clk_rates[MSM_VFE_CLK_RATE_NOMINAL]
 		[vfe_dev->hw_info->vfe_clk_idx]) {
-		pr_debug("%s:clk is less than Nominal vfe %d, ipeak bit %d\n",
-			__func__, vfe_dev->pdev->id, vfe_dev->cx_ipeak_bit);
-		ret = cam_cx_ipeak_unvote_cx_ipeak(vfe_dev->cx_ipeak_bit);
+		ret = cx_ipeak_update(vfe_dev->vfe_cx_ipeak, false);
 		if (ret) {
 			pr_err("%s: cx_ipeak_update failed %d\n",
 				__func__, ret);
@@ -2938,7 +2934,7 @@ get_res_fail:
 	vfe_dev->vfe_vbif_base_size = 0;
 	vfe_dev->vfe_base_size = 0;
 vfe_irq_fail:
-	msm_camera_put_reg_base(vfe_dev->pdev, vfe_dev->vfe_vbif_base,
+	msm_camera_put_reg_base(vfe_dev->pdev, vfe_dev->vfe_base,
 					"vfe_vbif", 0);
 vbif_base_fail:
 	msm_camera_put_reg_base(vfe_dev->pdev, vfe_dev->vfe_base, "vfe", 0);

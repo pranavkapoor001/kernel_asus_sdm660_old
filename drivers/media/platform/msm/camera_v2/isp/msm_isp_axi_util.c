@@ -16,7 +16,6 @@
 #include "msm_isp_stats_util.h"
 #include "msm_isp_axi_util.h"
 #include "msm_isp48.h"
-#include "trace/events/msm_cam.h"
 
 #define HANDLE_TO_IDX(handle) (handle & 0xFF)
 #define ISP_SOF_DEBUG_COUNT 0
@@ -173,8 +172,6 @@ static void msm_isp_axi_destroy_stream(
 			stream_info->bufq_handle[k] = 0;
 		stream_info->vfe_mask = 0;
 		stream_info->state = AVAILABLE;
-		memset(&stream_info->request_queue_cmd,
-			0, sizeof(stream_info->request_queue_cmd));
 	}
 }
 
@@ -1033,12 +1030,8 @@ void msm_isp_notify(struct vfe_device *vfe_dev, uint32_t event_type,
 			vfe_dev->isp_raw2_debug++;
 		}
 
-		ISP_DBG("%s: vfe %d frame_src %d frameid %d\n", __func__,
-			vfe_dev->pdev->id, frame_src,
-			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id);
-		trace_msm_cam_isp_status_dump("SOFNOTIFY:", vfe_dev->pdev->id,
-			vfe_dev->axi_data.src_info[VFE_PIX_0].frame_id,
-			0, 0);
+		ISP_DBG("%s: vfe %d frame_src %d\n", __func__,
+			vfe_dev->pdev->id, frame_src);
 
 		/*
 		 * Cannot support dual_cam and framedrop same time in union.
@@ -2051,8 +2044,7 @@ static void msm_isp_handle_done_buf_frame_id_mismatch(
 		ret = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 			buf->bufq_handle, buf->buf_idx, time_stamp,
 			frame_id,
-			stream_info->runtime_output_format,
-			VB2_BUF_STATE_ERROR);
+			stream_info->runtime_output_format);
 	if (ret == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev, ISP_EVENT_BUF_FATAL_ERROR);
 		return;
@@ -2130,8 +2122,7 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 				vfe_dev->buf_mgr,
 				buf->bufq_handle, buf->buf_idx,
 				time_stamp, frame_id,
-				stream_info->runtime_output_format,
-				VB2_BUF_STATE_DONE);
+				stream_info->runtime_output_format);
 
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
@@ -2199,8 +2190,7 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 		buf->buf_debug.put_state_last ^= 1;
 		rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 			buf->bufq_handle, buf->buf_idx, time_stamp,
-			frame_id, stream_info->runtime_output_format,
-			VB2_BUF_STATE_DONE);
+			frame_id, stream_info->runtime_output_format);
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
 					ISP_EVENT_BUF_FATAL_ERROR);
@@ -3455,8 +3445,7 @@ static int msm_isp_return_empty_buffer(struct vfe_device *vfe_dev,
 	rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 		buf->bufq_handle, buf->buf_idx,
 		&timestamp.buf_time, frame_id,
-		stream_info->runtime_output_format,
-		VB2_BUF_STATE_ERROR);
+		stream_info->runtime_output_format);
 	if (rc == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev,
 			ISP_EVENT_BUF_FATAL_ERROR);
@@ -3628,9 +3617,6 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 			stream_info->undelivered_request_cnt--;
 			pr_err_ratelimited("%s:%d fail to cfg HAL buffer\n",
 				__func__, __LINE__);
-			queue_req->cmd_used = 0;
-			list_del(&queue_req->list);
-			stream_info->request_q_cnt--;
 			return rc;
 		}
 
@@ -3669,9 +3655,6 @@ static int msm_isp_request_frame(struct vfe_device *vfe_dev,
 						flags);
 			pr_err_ratelimited("%s:%d fail to cfg HAL buffer\n",
 				__func__, __LINE__);
-			queue_req->cmd_used = 0;
-			list_del(&queue_req->list);
-			stream_info->request_q_cnt--;
 			return rc;
 		}
 	} else {
@@ -4096,11 +4079,6 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 	case UPDATE_STREAM_REQUEST_FRAMES_VER2: {
 		struct msm_vfe_axi_stream_cfg_update_info_req_frm *req_frm =
 			&update_cmd->req_frm_ver2;
-		if (HANDLE_TO_IDX(req_frm->stream_handle) >= VFE_AXI_SRC_MAX) {
-			pr_err("%s: Invalid stream handle \n", __func__);
-			rc = -EINVAL;
-			break;
-		}
 		stream_info = msm_isp_get_stream_common_data(vfe_dev,
 				HANDLE_TO_IDX(req_frm->stream_handle));
 		if (stream_info == NULL) {

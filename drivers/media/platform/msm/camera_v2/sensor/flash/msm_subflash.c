@@ -62,8 +62,7 @@ void msm_subtorch_brightness_set(struct led_classdev *led_cdev,
 		pr_err("No torch trigger found, can't set brightness\n");
 		return;
 	}
-
-	CDBG("msm_torch_brightness_set,value=%d\n", value);
+   CDBG("msm_torch_brightness_set,value=%d\n",value);
 	led_trigger_event(subtorch_trigger, value);
 };
 
@@ -620,9 +619,10 @@ static int32_t msm_subflash_low(
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
 		if (flash_ctrl->flash_trigger[i])
 			led_trigger_event(flash_ctrl->flash_trigger[i], 0);
-	if (flash_ctrl->switch_trigger)
-		led_trigger_event(flash_ctrl->switch_trigger, 0);
 
+     if (flash_ctrl->switch_trigger)
+		led_trigger_event(flash_ctrl->switch_trigger, 0);
+		
 	/* Turn on flash triggers */
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
 		if (flash_ctrl->torch_trigger[i]) {
@@ -659,9 +659,10 @@ static int32_t msm_subflash_high(
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
 		if (flash_ctrl->torch_trigger[i])
 			led_trigger_event(flash_ctrl->torch_trigger[i], 0);
-	if (flash_ctrl->switch_trigger)
-		led_trigger_event(flash_ctrl->switch_trigger, 0);
 
+     if (flash_ctrl->switch_trigger)
+		led_trigger_event(flash_ctrl->switch_trigger, 0);
+		
 	/* Turn on flash triggers */
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++) {
 		if (flash_ctrl->flash_trigger[i]) {

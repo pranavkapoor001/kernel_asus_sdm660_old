@@ -151,7 +151,6 @@ static int32_t msm_flash_i2c_write_table(
 	conf_array.delay = settings->delay;
 	conf_array.reg_setting = settings->reg_setting_a;
 	conf_array.size = settings->size;
-	flash_ctrl->flash_i2c_client.addr_type = conf_array.addr_type;
 
 	/* Validate the settings size */
 	if ((!conf_array.size) || (conf_array.size > MAX_I2C_REG_SET)) {
@@ -362,7 +361,14 @@ static int32_t msm_flash_gpio_init(
 static int32_t msm_flash_i2c_release(
 	struct msm_flash_ctrl_t *flash_ctrl)
 {
-	int32_t rc;
+	int32_t rc = 0;
+
+	if (!(&flash_ctrl->power_info) || !(&flash_ctrl->flash_i2c_client)) {
+		pr_err("%s:%d failed: %pK %pK\n",
+			__func__, __LINE__, &flash_ctrl->power_info,
+			&flash_ctrl->flash_i2c_client);
+		return -EINVAL;
+	}
 
 	rc = msm_camera_power_down(&flash_ctrl->power_info,
 		flash_ctrl->flash_device_type,
@@ -372,7 +378,6 @@ static int32_t msm_flash_i2c_release(
 			__func__, __LINE__);
 		return -EINVAL;
 	}
-	flash_ctrl->flash_state = MSM_CAMERA_FLASH_RELEASE;
 	return 0;
 }
 
@@ -614,10 +619,8 @@ static int32_t msm_flash_low(
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++)
 		if (flash_ctrl->flash_trigger[i])
 			led_trigger_event(flash_ctrl->flash_trigger[i], 0);
-#ifdef CONFIG_MACH_ASUS_X00T
-	if (flash_ctrl->switch_trigger)
+        if (flash_ctrl->switch_trigger)
 		led_trigger_event(flash_ctrl->switch_trigger, 0);
-#endif
 
 	/* Turn on flash triggers */
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++) {
@@ -655,10 +658,8 @@ static int32_t msm_flash_high(
 	for (i = 0; i < flash_ctrl->torch_num_sources; i++)
 		if (flash_ctrl->torch_trigger[i])
 			led_trigger_event(flash_ctrl->torch_trigger[i], 0);
-#ifdef CONFIG_MACH_ASUS_X00T
-	if (flash_ctrl->switch_trigger)
+        if (flash_ctrl->switch_trigger)
 		led_trigger_event(flash_ctrl->switch_trigger, 0);
-#endif
 
 	/* Turn on flash triggers */
 	for (i = 0; i < flash_ctrl->flash_num_sources; i++) {
@@ -788,13 +789,11 @@ static int32_t msm_flash_config(struct msm_flash_ctrl_t *flash_ctrl,
 
 	mutex_unlock(flash_ctrl->flash_mutex);
 
-	if (flash_ctrl->flash_driver_type == FLASH_DRIVER_PMIC) {
-		rc = msm_flash_prepare(flash_ctrl);
-		if (rc < 0) {
-			pr_err("%s:%d Enable/Disable Regulator failed ret = %d",
-					__func__, __LINE__, rc);
-			return rc;
-		}
+	rc = msm_flash_prepare(flash_ctrl);
+	if (rc < 0) {
+		pr_err("%s:%d Enable/Disable Regulator failed ret = %d",
+			__func__, __LINE__, rc);
+		return rc;
 	}
 
 	CDBG("Exit %s type %d\n", __func__, flash_data->cfg_type);
